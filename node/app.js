@@ -15,11 +15,22 @@ const
   config = require('config'),
   crypto = require('crypto'),
   express = require('express'),
+  fs = require('fs'),
+  http = require('http'),
   https = require('https'),  
   request = require('request');
 
+
+var options = {
+	ca: fs.readFileSync('./config/ca_bundle.crt'),
+    key: fs.readFileSync('./config/private.pem'),
+    cert: fs.readFileSync('./config/certificate.crt'),
+};
+
+var alarmUsers = new Set();
+  
 var app = express();
-app.set('port', process.env.PORT || 5000);
+app.set('port', process.env.PORT || 9090);
 app.set('view engine', 'ejs');
 app.use(bodyParser.json({ verify: verifyRequestSignature }));
 app.use(express.static('public'));
@@ -254,7 +265,23 @@ function receivedMessage(event) {
     // If we receive a text message, check to see if it matches any special
     // keywords and send back the corresponding example. Otherwise, just echo
     // the text we received.
-    switch (messageText) {
+	var msglwr = messageText.toLowerCase();
+    switch (msglwr) {
+		
+	// home
+	  case 'alarm on':
+		sendAlarmOn(senderID);
+		break;
+
+	  case 'alarm off':
+		sendAlarmOff(senderID);
+		break;
+
+	  case 'alarm status':
+		sendAlarmStatus(senderID);
+		break;
+		
+	// examples
       case 'image':
         sendImageMessage(senderID);
         break;
@@ -402,6 +429,60 @@ function receivedAccountLink(event) {
 
   console.log("Received account link event with for user %d with status %s " +
     "and auth code %s ", senderID, status, authCode);
+}
+
+/*
+ * Add the user for alarm notifications
+ *
+ */
+function sendAlarmOn(recipientId) {
+  if(alarmUsers.has(recipientId) == false) {
+    alarmUsers.add(recipientId);
+	sendAlarmStatusRepeat(recipientId);
+  }
+  
+  console.log("Received alarm on for user %d", recipientId);
+  console.log("Alarm users");
+  for(let i of alarmUsers) { 
+	console.log(i); 
+  }
+  
+  sendTextMessage(recipientId, "Alarm notifications on.");
+}
+
+/*
+ * Add the user for alarm notifications
+ *
+ */
+function sendAlarmOff(recipientId) {
+  alarmUsers.delete(recipientId);
+  
+  console.log("Received alarm on for user %d", recipientId);
+  console.log("Alarm users");
+  for(let i of alarmUsers) { 
+	console.log(i); 
+  }
+  
+  sendTextMessage(recipientId, "Alarm notifications off.");
+}
+
+/*
+ * Send the current alarm status
+ *
+ */
+var statusCounter = 0;
+function sendAlarmStatus(recipientId) {
+  statusCounter++;
+  sendTextMessage(recipientId, "Alarm status " + statusCounter + ".");
+}
+
+function sendAlarmStatusRepeat(recipientId) {
+  console.log("alarm status repeat for user %d", recipientId);
+
+  if(alarmUsers.has(recipientId) == true) {
+    sendAlarmStatus(recipientId);
+	setTimeout(function() { sendAlarmStatusRepeat(recipientId); },5000)  
+  }
 }
 
 /*
@@ -830,8 +911,12 @@ function callSendAPI(messageData) {
 // Start server
 // Webhooks must be available via SSL with a certificate signed by a valid 
 // certificate authority.
-app.listen(app.get('port'), function() {
-  console.log('Node app is running on port', app.get('port'));
+//app.listen(app.get('port'), function() {
+//  console.log('Node app is running on port', app.get('port'));
+//});
+
+var server = https.createServer(options, app).listen(app.get('port'), function(){
+  console.log("Express server listening on port " + app.get('port'));
 });
 
 module.exports = app;

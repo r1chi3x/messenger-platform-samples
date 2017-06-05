@@ -4,3 +4,9 @@ pids
 node_modules
 .npm
 *.dat
+node/config/ca_bundle.crt
+node/config/certificate.crt
+node/config/sslforfree.zip
+node/config/private.pem
+node/config/default.json
+node/config/default - Copy.json
